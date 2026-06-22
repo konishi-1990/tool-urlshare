@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL 共有ツール</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      padding: 24px 16px;
+    }
+
+    .login-wrap {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .login-logo-icon {
+      width: 56px; height: 56px;
+      background: var(--primary);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 12px;
+      box-shadow: 0 4px 16px rgba(37,99,235,.35);
+    }
+    .login-logo h1 {
+      font-size: 1.4rem;
+      color: var(--text);
+    }
+    .login-logo p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .login-card {
+      padding: 28px 24px;
+    }
+
+    .login-form { display: flex; flex-direction: column; gap: 16px; }
+
+    .login-divider {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 4px 0;
+      position: relative;
+    }
+    .login-divider::before, .login-divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 38%;
+      height: 1px;
+      background: var(--border);
+    }
+    .login-divider::before { left: 0; }
+    .login-divider::after  { right: 0; }
+
+    .mode-toggle {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    .mode-toggle a {
+      color: var(--primary);
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .mode-toggle a:hover { text-decoration: underline; }
+
+    #form-title { margin-bottom: 20px; font-size: 1.1rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="login-logo-icon">🔗</div>
+      <h1>URL 共有ツール</h1>
+      <p>あとで読みたい記事を、どの端末からでも</p>
+    </div>
+
+    <div class="card login-card">
+      <h2 id="form-title">ログイン</h2>
+      <form class="login-form" id="auth-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="email">メールアドレス</label>
+          <input class="form-input" type="email" id="email"
+                 placeholder="you@example.com" autocomplete="email" required>
+          <span class="form-error" id="email-error"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">パスワード</label>
+          <input class="form-input" type="password" id="password"
+                 placeholder="8文字以上" autocomplete="current-password" required>
+          <span class="form-error" id="password-error"></span>
+        </div>
+        <div class="form-error" id="form-error"></div>
+        <button class="btn btn-primary btn-block" type="submit" id="submit-btn">
+          ログイン
+        </button>
+      </form>
+      <div class="login-divider" style="margin-top:20px;">または</div>
+      <div class="mode-toggle">
+        アカウントをお持ちでない方は
+        <a id="mode-link">新規登録</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script>
+    // すでにログイン済みなら一覧へ
+    if (getToken()) location.href = '/list.html';
+
+    let mode = 'login'; // 'login' | 'register'
+
+    const formTitle  = document.getElementById('form-title');
+    const submitBtn  = document.getElementById('submit-btn');
+    const modeLink   = document.getElementById('mode-link');
+    const formError  = document.getElementById('form-error');
+    const emailError = document.getElementById('email-error');
+    const passError  = document.getElementById('password-error');
+
+    modeLink.addEventListener('click', () => {
+      mode = mode === 'login' ? 'register' : 'login';
+      formTitle.textContent = mode === 'login' ? 'ログイン' : '新規登録';
+      submitBtn.textContent = mode === 'login' ? 'ログイン' : '登録する';
+      modeLink.textContent  = mode === 'login' ? '新規登録' : 'ログインはこちら';
+      document.querySelector('.mode-toggle').firstChild.textContent =
+        mode === 'login' ? 'アカウントをお持ちでない方は' : 'すでにアカウントをお持ちの方は';
+      [formError, emailError, passError].forEach(e => e.classList.remove('visible'));
+    });
+
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      [formError, emailError, passError].forEach(e => e.classList.remove('visible'));
+
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      setLoading(submitBtn, true);
+      try {
+        let res;
+        if (mode === 'login') {
+          res = await api.login(email, password);
+        } else {
+          res = await api.register(email, password);
+          if (res.ok) {
+            const data = await res.json();
+            setToken(data.token);
+          }
+        }
+
+        if (!res) return; // 401 handled in api.js
+
+        if (res.ok) {
+          location.href = '/list.html';
+          return;
+        }
+
+        const data = await res.json();
+        if (res.status === 422 && data.errors) {
+          if (data.errors.email)    { emailError.textContent = data.errors.email[0]; emailError.classList.add('visible'); }
+          if (data.errors.password) { passError.textContent  = data.errors.password[0]; passError.classList.add('visible'); }
+        } else if (res.status === 401) {
+          formError.textContent = 'メールアドレスまたはパスワードが正しくありません。';
+          formError.classList.add('visible');
+        } else {
+          formError.textContent = 'エラーが発生しました。しばらく経ってからお試しください。';
+          formError.classList.add('visible');
+        }
+      } catch {
+        formError.textContent = 'ネットワークエラーが発生しました。';
+        formError.classList.add('visible');
+      } finally {
+        setLoading(submitBtn, false);
+      }
+    });
+  </script>
+</body>
+</html>

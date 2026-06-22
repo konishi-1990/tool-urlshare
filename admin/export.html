@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>エクスポート — 管理画面</title>
+  <link rel="stylesheet" href="/admin/css/style.css">
+  <style>
+    .export-card { padding: 32px; max-width: 560px; }
+    .export-desc { font-size: 13px; color: var(--text-muted); line-height: 1.7; margin-bottom: 24px; }
+    .export-info {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+    .export-info ul { margin: 6px 0 0 16px; }
+    .export-info li { color: var(--text-muted); margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+
+    <!-- ヘッダー -->
+    <header class="app-header">
+      <div class="app-header-title">
+        <span>⚙️</span> 管理画面
+      </div>
+      <div class="app-header-right">
+        <button class="btn btn-ghost btn-sm" id="logout-btn"
+                style="color:#fff;border-color:rgba(255,255,255,.4);">ログアウト</button>
+      </div>
+    </header>
+
+    <!-- ナビ -->
+    <nav class="app-nav">
+      <a class="nav-link" href="/admin/urls.html">URL 一覧</a>
+      <a class="nav-link" href="/admin/users.html">ユーザー管理</a>
+      <a class="nav-link active" href="/admin/export.html">エクスポート</a>
+    </nav>
+
+    <!-- コンテンツ -->
+    <div class="page-content">
+      <div class="card export-card">
+        <h2 style="margin-bottom:16px;">ブックマークエクスポート</h2>
+
+        <p class="export-desc">
+          全ユーザーのブックマーク済み URL を Netscape Bookmark ファイル形式でエクスポートします。<br>
+          ダウンロードしたファイルは Chrome・Firefox などのブラウザにインポートできます。
+        </p>
+
+        <div class="export-info">
+          <strong>エクスポート対象</strong>
+          <ul>
+            <li>ステータスが「ブックマーク」の全エントリ</li>
+            <li>出力形式: Netscape HTML Bookmark File (text/html)</li>
+            <li>ファイル名: bookmarks.html</li>
+          </ul>
+        </div>
+
+        <div class="form-error" id="export-error" style="margin-bottom:12px;"></div>
+
+        <button class="btn btn-primary" id="export-btn">
+          ⬇ ブックマークをエクスポート
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/ui.js"></script>
+  <script>
+    requireAdminAuth();
+    setActiveNav('/admin/export.html');
+
+    const exportBtn = document.getElementById('export-btn');
+    const exportErr = document.getElementById('export-error');
+
+    exportBtn.addEventListener('click', async () => {
+      exportErr.classList.remove('visible');
+      setLoading(exportBtn, true);
+      try {
+        const res = await api.exportBookmarks();
+        if (!res) return;
+
+        if (!res.ok) {
+          exportErr.textContent = 'エクスポートに失敗しました（ステータス: ' + res.status + '）';
+          exportErr.classList.add('visible');
+          return;
+        }
+
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'bookmarks.html';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showToast('エクスポートが完了しました', 'success');
+      } catch {
+        exportErr.textContent = 'ネットワークエラーが発生しました。';
+        exportErr.classList.add('visible');
+      } finally {
+        setLoading(exportBtn, false);
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('logout-btn');
+      setLoading(btn, true);
+      try { await api.logout(); } finally { location.href = '/admin/'; }
+    });
+  </script>
+</body>
+</html>

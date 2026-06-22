@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ユーザー管理 — 管理画面</title>
+  <link rel="stylesheet" href="/admin/css/style.css">
+  <style>
+    .badge-admin { background: rgba(37,99,235,.1); color: #2563EB; border: 1px solid rgba(37,99,235,.25); }
+    .badge-user  { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
+
+    /* ── Create user modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 28px 28px 24px;
+      width: 90%; max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    }
+    .modal-title { font-size: 1rem; font-weight: 700; margin-bottom: 20px; }
+    .modal-form  { display: flex; flex-direction: column; gap: 14px; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    .role-choice { display: flex; gap: 8px; }
+    .role-btn {
+      flex: 1; padding: 8px; border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      background: var(--surface); color: var(--text-muted);
+      border: 1.5px solid var(--border);
+      transition: all .15s;
+    }
+    .role-btn.selected-user  { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+    .role-btn.selected-admin { background: rgba(37,99,235,.12); color: #2563EB; border-color: #2563EB; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+
+    <!-- ヘッダー -->
+    <header class="app-header">
+      <div class="app-header-title">
+        <span>⚙️</span> 管理画面
+      </div>
+      <div class="app-header-right">
+        <button class="btn btn-ghost btn-sm" id="logout-btn"
+                style="color:#fff;border-color:rgba(255,255,255,.4);">ログアウト</button>
+      </div>
+    </header>
+
+    <!-- ナビ -->
+    <nav class="app-nav">
+      <a class="nav-link" href="/admin/urls.html">URL 一覧</a>
+      <a class="nav-link active" href="/admin/users.html">ユーザー管理</a>
+      <a class="nav-link" href="/admin/export.html">エクスポート</a>
+    </nav>
+
+    <!-- コンテンツ -->
+    <div class="page-content">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input class="search-input" id="search" type="text" placeholder="メールアドレスで検索…">
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary btn-sm" id="create-btn">＋ ユーザーを追加</button>
+        </div>
+      </div>
+
+      <div class="card table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>メールアドレス</th>
+              <th>ロール</th>
+              <th>登録日時</th>
+              <th style="text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody">
+            <tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted);">読み込み中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ユーザー作成モーダル -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal-box">
+      <div class="modal-title">ユーザーを追加</div>
+      <form class="modal-form" id="create-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="new-email">メールアドレス</label>
+          <input class="form-input" type="email" id="new-email" placeholder="user@example.com" required>
+          <span class="form-error" id="email-error"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-password">パスワード（8文字以上）</label>
+          <input class="form-input" type="password" id="new-password" placeholder="password123" required>
+          <span class="form-error" id="password-error"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ロール</label>
+          <div class="role-choice">
+            <button type="button" class="role-btn selected-user" id="role-user" data-role="user">👤 一般ユーザー</button>
+            <button type="button" class="role-btn" id="role-admin" data-role="admin">⚙️ 管理者</button>
+          </div>
+        </div>
+        <span class="form-error" id="form-error"></span>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="modal-cancel">キャンセル</button>
+        <button class="btn btn-primary" id="modal-submit">作成する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 削除確認モーダル -->
+  <div class="modal-overlay" id="confirm-modal">
+    <div class="modal-box" style="max-width:380px;">
+      <div class="modal-title">ユーザーの削除</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;" id="confirm-msg"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="confirm-cancel">キャンセル</button>
+        <button class="btn btn-danger" id="confirm-ok">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/ui.js"></script>
+  <script>
+    requireAdminAuth();
+    setActiveNav('/admin/users.html');
+
+    let allUsers = [];
+    let selectedRole = 'user';
+    let pendingDeleteId = null;
+
+    // ── ユーザー読み込み ──
+    async function loadUsers() {
+      document.getElementById('users-tbody').innerHTML =
+        '<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted);">読み込み中…</td></tr>';
+      try {
+        const res = await api.listUsers();
+        if (!res) return;
+        if (!res.ok) { showToast('読み込みに失敗しました', 'error'); return; }
+        const data = await res.json();
+        allUsers = data.data ?? data;
+        renderTable();
+      } catch {
+        showToast('ネットワークエラー', 'error');
+      }
+    }
+
+    // ── テーブル描画 ──
+    function renderTable() {
+      const term = document.getElementById('search').value.toLowerCase();
+      const filtered = allUsers.filter(u =>
+        !term || u.email.toLowerCase().includes(term)
+      );
+
+      const tbody = document.getElementById('users-tbody');
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">ユーザーが見つかりません</div></div></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(u => {
+        const roleBadge = u.is_admin
+          ? '<span class="badge badge-admin">⚙️ 管理者</span>'
+          : '<span class="badge badge-user">👤 一般</span>';
+        const date = u.created_at
+          ? new Date(u.created_at).toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+          : '—';
+
+        return `<tr>
+          <td>${escHtml(u.email)}</td>
+          <td>${roleBadge}</td>
+          <td style="font-size:12px;white-space:nowrap;">${date}</td>
+          <td class="cell-actions">
+            <button class="btn btn-danger btn-sm action-delete"
+                    data-id="${escHtml(u.id)}"
+                    data-email="${escHtml(u.email)}">削除</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ── 検索 ──
+    let searchTimer;
+    document.getElementById('search').addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(renderTable, 150);
+    });
+
+    // ── ロール選択 ──
+    document.getElementById('role-user').addEventListener('click', () => {
+      selectedRole = 'user';
+      document.getElementById('role-user').className  = 'role-btn selected-user';
+      document.getElementById('role-admin').className = 'role-btn';
+    });
+    document.getElementById('role-admin').addEventListener('click', () => {
+      selectedRole = 'admin';
+      document.getElementById('role-user').className  = 'role-btn';
+      document.getElementById('role-admin').className = 'role-btn selected-admin';
+    });
+
+    // ── モーダル開閉 ──
+    function openCreateModal() {
+      document.getElementById('create-form').reset();
+      selectedRole = 'user';
+      document.getElementById('role-user').className  = 'role-btn selected-user';
+      document.getElementById('role-admin').className = 'role-btn';
+      ['email-error','password-error','form-error'].forEach(id =>
+        document.getElementById(id).classList.remove('visible')
+      );
+      document.getElementById('create-modal').classList.add('open');
+      setTimeout(() => document.getElementById('new-email').focus(), 50);
+    }
+    function closeCreateModal() {
+      document.getElementById('create-modal').classList.remove('open');
+    }
+
+    document.getElementById('create-btn').addEventListener('click', openCreateModal);
+    document.getElementById('modal-cancel').addEventListener('click', closeCreateModal);
+    document.getElementById('create-modal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('create-modal')) closeCreateModal();
+    });
+
+    // ── ユーザー作成 ──
+    document.getElementById('modal-submit').addEventListener('click', async () => {
+      const btn       = document.getElementById('modal-submit');
+      const emailErr  = document.getElementById('email-error');
+      const passErr   = document.getElementById('password-error');
+      const formErr   = document.getElementById('form-error');
+      [emailErr, passErr, formErr].forEach(el => el.classList.remove('visible'));
+
+      const email    = document.getElementById('new-email').value.trim();
+      const password = document.getElementById('new-password').value;
+      const is_admin = selectedRole === 'admin';
+
+      setLoading(btn, true);
+      try {
+        const res = await api.createUser(email, password, is_admin);
+        if (!res) return;
+
+        if (res.ok) {
+          closeCreateModal();
+          showToast('ユーザーを作成しました', 'success');
+          loadUsers();
+        } else if (res.status === 422) {
+          const data = await res.json();
+          if (data.errors?.email)    { emailErr.textContent = data.errors.email[0]; emailErr.classList.add('visible'); }
+          if (data.errors?.password) { passErr.textContent  = data.errors.password[0]; passErr.classList.add('visible'); }
+          if (!data.errors?.email && !data.errors?.password) {
+            formErr.textContent = '入力内容を確認してください';
+            formErr.classList.add('visible');
+          }
+        } else {
+          formErr.textContent = '作成に失敗しました';
+          formErr.classList.add('visible');
+        }
+      } catch {
+        formErr.textContent = 'ネットワークエラーが発生しました';
+        formErr.classList.add('visible');
+      } finally {
+        setLoading(btn, false, '作成する');
+      }
+    });
+
+    // ── ユーザー削除 ──
+    document.getElementById('users-tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.action-delete');
+      if (!btn) return;
+      pendingDeleteId = btn.dataset.id;
+      document.getElementById('confirm-msg').textContent =
+        `「${btn.dataset.email}」を削除しますか？この操作は元に戻せません。`;
+      document.getElementById('confirm-modal').classList.add('open');
+    });
+
+    document.getElementById('confirm-cancel').addEventListener('click', () => {
+      document.getElementById('confirm-modal').classList.remove('open');
+      pendingDeleteId = null;
+    });
+
+    document.getElementById('confirm-ok').addEventListener('click', async () => {
+      if (!pendingDeleteId) return;
+      const id = pendingDeleteId;
+      document.getElementById('confirm-modal').classList.remove('open');
+      pendingDeleteId = null;
+
+      try {
+        const res = await api.deleteUser(id);
+        if (!res) return;
+        if (res.ok) {
+          showToast('ユーザーを削除しました', 'success');
+          allUsers = allUsers.filter(u => u.id !== id);
+          renderTable();
+        } else if (res.status === 422) {
+          showToast('自分自身は削除できません', 'error');
+        } else {
+          showToast('削除に失敗しました', 'error');
+        }
+      } catch {
+        showToast('ネットワークエラー', 'error');
+      }
+    });
+
+    // ── ログアウト ──
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('logout-btn');
+      setLoading(btn, true);
+      try { await api.logout(); } finally { location.href = '/admin/'; }
+    });
+
+    loadUsers();
+  </script>
+</body>
+</html>

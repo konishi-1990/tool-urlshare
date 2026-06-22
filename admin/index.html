@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理画面 — ログイン</title>
+  <link rel="stylesheet" href="/admin/css/style.css">
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-box">
+      <div class="login-logo">
+        <div class="login-logo-icon">⚙️</div>
+        <h1>URL 共有ツール 管理画面</h1>
+        <p>管理者アカウントでログインしてください</p>
+      </div>
+
+      <form class="login-form" id="login-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="email">メールアドレス</label>
+          <input class="form-input" type="email" id="email"
+                 placeholder="admin@example.com" autocomplete="email" required>
+          <span class="form-error" id="email-error"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">パスワード</label>
+          <input class="form-input" type="password" id="password"
+                 placeholder="パスワード" autocomplete="current-password" required>
+        </div>
+        <div class="form-error" id="form-error"></div>
+        <button class="btn btn-primary btn-block" type="submit" id="submit-btn">
+          ログイン
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/ui.js"></script>
+  <script>
+    if (getToken()) location.href = '/admin/urls.html';
+
+    const formError  = document.getElementById('form-error');
+    const emailError = document.getElementById('email-error');
+    const submitBtn  = document.getElementById('submit-btn');
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      [formError, emailError].forEach(el => el.classList.remove('visible'));
+
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      setLoading(submitBtn, true);
+      try {
+        const res = await api.login(email, password);
+        if (!res) return;
+
+        if (res.ok) {
+          location.href = '/admin/urls.html';
+          return;
+        }
+
+        const data = await res.json();
+        if (res.status === 401) {
+          formError.textContent = 'メールアドレスまたはパスワードが正しくありません。';
+          formError.classList.add('visible');
+        } else if (res.status === 403) {
+          formError.textContent = '管理者権限がありません。';
+          formError.classList.add('visible');
+        } else if (res.status === 422 && data.errors) {
+          if (data.errors.email) { emailError.textContent = data.errors.email[0]; emailError.classList.add('visible'); }
+        } else {
+          formError.textContent = 'エラーが発生しました。';
+          formError.classList.add('visible');
+        }
+      } catch {
+        formError.textContent = 'ネットワークエラーが発生しました。';
+        formError.classList.add('visible');
+      } finally {
+        setLoading(submitBtn, false);
+      }
+    });
+  </script>
+</body>
+</html>

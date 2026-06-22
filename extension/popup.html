@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>URL 共有ツール</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:      #2563EB;
+      --primary-dark: #1D4ED8;
+      --primary-soft: rgba(37,99,235,.1);
+      --surface:      #F8FAFF;
+      --card:         #FFFFFF;
+      --border:       #E2E8F0;
+      --text:         #0F172A;
+      --text-muted:   #64748B;
+      --success:      #16A34A;
+      --warn:         #D97706;
+      --warn-soft:    rgba(217,119,6,.12);
+      --danger:       #DC2626;
+      --radius:       8px;
+      --radius-sm:    6px;
+    }
+
+    html {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      font-size: 14px;
+      background: var(--surface);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    body {
+      width: 320px;
+      min-height: 200px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-title {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 14px; font-weight: 700;
+    }
+    .header-title span { font-size: 18px; }
+    .header-logout {
+      background: none; border: 1px solid rgba(255,255,255,.4);
+      color: rgba(255,255,255,.85);
+      padding: 4px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .header-logout:hover { background: rgba(255,255,255,.15); }
+
+    /* ── Sections ── */
+    .section { padding: 14px; }
+
+    /* ── Form ── */
+    .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .form-label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+    .form-input {
+      padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 13px; font-family: inherit; color: var(--text); background: var(--card);
+      width: 100%; transition: border-color .15s;
+    }
+    .form-input:focus { outline: none; border-color: var(--primary); }
+    .form-error { font-size: 11px; color: var(--danger); display: none; }
+    .form-error.visible { display: block; }
+
+    /* ── Button ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 8px 14px; border: none; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      font-family: inherit; width: 100%;
+      transition: background .15s;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+    .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-warn    { background: var(--warn-soft); color: var(--warn); border: 1.5px solid rgba(217,119,6,.3); }
+    .btn-group   { display: flex; gap: 8px; }
+
+    /* ── URL preview ── */
+    .url-preview {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+    .url-preview-title {
+      font-weight: 600; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      margin-bottom: 2px;
+    }
+    .url-preview-url {
+      color: var(--text-muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Status choice ── */
+    .status-choice { display: flex; gap: 6px; margin-bottom: 12px; }
+    .status-btn {
+      flex: 1; padding: 7px; border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      background: var(--surface); color: var(--text-muted);
+      border: 1.5px solid var(--border);
+      transition: all .15s;
+    }
+    .status-btn.selected-temporary { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+    .status-btn.selected-bookmarked { background: var(--warn-soft); color: var(--warn); border-color: rgba(217,119,6,.4); }
+
+    /* ── Success state ── */
+    .success-state {
+      text-align: center; padding: 24px 14px;
+    }
+    .success-icon { font-size: 36px; margin-bottom: 8px; }
+    .success-text { font-size: 14px; font-weight: 600; color: var(--text); }
+    .success-sub  { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- ログイン画面 -->
+  <div id="view-login">
+    <div class="header">
+      <div class="header-title"><span>🔗</span> URL 共有ツール</div>
+    </div>
+    <div class="section">
+      <div class="form-group">
+        <label class="form-label" for="login-email">メールアドレス</label>
+        <input class="form-input" type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="login-password">パスワード</label>
+        <input class="form-input" type="password" id="login-password" placeholder="パスワード" autocomplete="current-password">
+      </div>
+      <div class="form-error" id="login-error"></div>
+      <div style="margin-top:4px;">
+        <button class="btn btn-primary" id="login-btn">ログイン</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 保存画面 -->
+  <div id="view-save" style="display:none;">
+    <div class="header">
+      <div class="header-title"><span>🔗</span> URL 共有ツール</div>
+      <button class="header-logout" id="logout-btn">ログアウト</button>
+    </div>
+    <div class="section">
+      <div class="url-preview" id="url-preview">
+        <div class="url-preview-title" id="preview-title">読み込み中…</div>
+        <div class="url-preview-url" id="preview-url"></div>
+      </div>
+
+      <div class="status-choice">
+        <button class="status-btn selected-temporary" data-status="temporary" id="btn-temporary">⏰ あとで読む</button>
+        <button class="status-btn" data-status="bookmarked" id="btn-bookmarked">★ ブックマーク</button>
+      </div>
+
+      <div class="form-error" id="save-error"></div>
+
+      <button class="btn btn-primary" id="save-btn">保存する</button>
+    </div>
+  </div>
+
+  <!-- 保存完了画面 -->
+  <div id="view-done" style="display:none;">
+    <div class="header">
+      <div class="header-title"><span>🔗</span> URL 共有ツール</div>
+      <button class="header-logout" id="logout-btn-done">ログアウト</button>
+    </div>
+    <div class="success-state">
+      <div class="success-icon">✅</div>
+      <div class="success-text" id="done-text">保存しました</div>
+      <div class="success-sub" id="done-sub"></div>
+    </div>
+    <div class="section" style="padding-top:0;">
+      <button class="btn btn-outline" id="save-another-btn">別の URL を保存する</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

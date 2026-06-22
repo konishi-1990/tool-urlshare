@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL 管理 — 管理画面</title>
+  <link rel="stylesheet" href="/admin/css/style.css">
+</head>
+<body>
+  <div class="page-wrap">
+
+    <!-- ヘッダー -->
+    <header class="app-header">
+      <div class="app-header-title">
+        <span>⚙️</span> 管理画面
+      </div>
+      <div class="app-header-right">
+        <button class="btn btn-ghost btn-sm" id="logout-btn"
+                style="color:#fff;border-color:rgba(255,255,255,.4);">ログアウト</button>
+      </div>
+    </header>
+
+    <!-- ナビ -->
+    <nav class="app-nav">
+      <a class="nav-link active" href="/admin/urls.html">URL 一覧</a>
+      <a class="nav-link" href="/admin/users.html">ユーザー管理</a>
+      <a class="nav-link" href="/admin/export.html">エクスポート</a>
+    </nav>
+
+    <!-- コンテンツ -->
+    <div class="page-content">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input class="search-input" id="search" type="text" placeholder="URL・タイトルで検索…">
+          <select class="filter-select" id="status-filter">
+            <option value="">すべてのステータス</option>
+            <option value="temporary">あとで読む</option>
+            <option value="bookmarked">ブックマーク</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-outline btn-sm" id="reload-btn">再読込</button>
+        </div>
+      </div>
+
+      <div class="card table-wrap" id="table-wrap">
+        <table id="urls-table">
+          <thead>
+            <tr>
+              <th>タイトル / URL</th>
+              <th>ユーザー</th>
+              <th>ステータス</th>
+              <th>登録日時</th>
+              <th style="text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="urls-tbody">
+            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">読み込み中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 削除確認モーダル（簡易） -->
+  <div id="confirm-overlay"
+       style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+              z-index:200;align-items:center;justify-content:center;">
+    <div class="card" style="padding:24px 28px;max-width:380px;width:90%;margin:16px;">
+      <h2 style="margin-bottom:12px;">削除の確認</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;" id="confirm-msg"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-ghost" id="confirm-cancel">キャンセル</button>
+        <button class="btn btn-danger" id="confirm-ok">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/ui.js"></script>
+  <script>
+    requireAdminAuth();
+    setActiveNav('/admin/urls.html');
+
+    let allItems = [];
+    let searchTerm = '';
+    let statusFilter = '';
+    let pendingDeleteId = null;
+
+    // ── 読み込み ──
+    async function loadUrls() {
+      document.getElementById('urls-tbody').innerHTML =
+        '<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">読み込み中…</td></tr>';
+      try {
+        const res = await api.listUrls({ status: statusFilter });
+        if (!res) return;
+        if (!res.ok) { showToast('読み込みに失敗しました', 'error'); return; }
+        const data = await res.json();
+        allItems = data.data ?? data;
+        renderTable();
+      } catch {
+        showToast('ネットワークエラー', 'error');
+      }
+    }
+
+    // ── テーブル描画 ──
+    function renderTable() {
+      const term = searchTerm.toLowerCase();
+      const filtered = allItems.filter(item => {
+        if (!term) return true;
+        return (item.title ?? '').toLowerCase().includes(term)
+            || item.url.toLowerCase().includes(term)
+            || (item.user?.email ?? '').toLowerCase().includes(term);
+      });
+
+      const tbody = document.getElementById('urls-tbody');
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-text">該当する URL がありません</div></div></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const title  = escHtml(item.title || '(タイトルなし)');
+        const url    = escHtml(item.url);
+        const email  = escHtml(item.user?.email ?? '—');
+        const date   = item.created_at ? new Date(item.created_at).toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+        let badge = '';
+        if (item.status === 'bookmarked') badge = '<span class="badge badge-bookmarked">★ ブックマーク</span>';
+        else if (item.status === 'temporary') badge = '<span class="badge badge-temporary">あとで読む</span>';
+        else badge = '<span class="badge badge-deleted">削除済み</span>';
+
+        return `<tr>
+          <td>
+            <div class="cell-title" title="${url}">
+              <a href="${url}" target="_blank" rel="noopener noreferrer"
+                 style="color:var(--accent);text-decoration:none;">${title}</a>
+            </div>
+            <div class="cell-url" style="font-size:11px;color:var(--text-muted);" title="${url}">${url}</div>
+          </td>
+          <td class="cell-user">${email}</td>
+          <td>${badge}</td>
+          <td style="font-size:12px;white-space:nowrap;">${date}</td>
+          <td class="cell-actions">
+            <button class="btn btn-danger btn-sm action-delete"
+                    data-id="${escHtml(item.id)}"
+                    data-title="${title}">削除</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ── 検索・フィルター ──
+    let searchTimer;
+    document.getElementById('search').addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { searchTerm = e.target.value.trim(); renderTable(); }, 200);
+    });
+    document.getElementById('status-filter').addEventListener('change', (e) => {
+      statusFilter = e.target.value;
+      loadUrls();
+    });
+    document.getElementById('reload-btn').addEventListener('click', loadUrls);
+
+    // ── 削除アクション ──
+    document.getElementById('urls-tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.action-delete');
+      if (!btn) return;
+      pendingDeleteId = btn.dataset.id;
+      document.getElementById('confirm-msg').textContent = `「${btn.dataset.title}」を削除しますか？この操作は元に戻せません。`;
+      const overlay = document.getElementById('confirm-overlay');
+      overlay.style.display = 'flex';
+    });
+
+    document.getElementById('confirm-cancel').addEventListener('click', () => {
+      document.getElementById('confirm-overlay').style.display = 'none';
+      pendingDeleteId = null;
+    });
+
+    document.getElementById('confirm-ok').addEventListener('click', async () => {
+      if (!pendingDeleteId) return;
+      const id = pendingDeleteId;
+      document.getElementById('confirm-overlay').style.display = 'none';
+      pendingDeleteId = null;
+
+      const btn = document.querySelector(`.action-delete[data-id="${id}"]`);
+      if (btn) setLoading(btn, true);
+
+      try {
+        const res = await api.deleteUrl(id);
+        if (!res) return;
+        if (res.ok) {
+          showToast('削除しました', 'success');
+          allItems = allItems.filter(item => item.id !== id);
+          renderTable();
+        } else {
+          showToast('削除に失敗しました', 'error');
+          if (btn) setLoading(btn, false);
+        }
+      } catch {
+        showToast('ネットワークエラー', 'error');
+        if (btn) setLoading(btn, false);
+      }
+    });
+
+    // ── ログアウト ──
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('logout-btn');
+      setLoading(btn, true);
+      try { await api.logout(); } finally { location.href = '/admin/'; }
+    });
+
+    loadUrls();
+  </script>
+</body>
+</html>
