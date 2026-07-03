@@ -277,13 +277,26 @@ volumes:
 
 ## 8. 初回セットアップ手順（サーバ上、手動・一度きり）
 
+> **重要**: 本番の `backend/.env` は `docker-compose.prod.yml` で **`:ro`（読み取り専用）**
+> マウントしている。そのため `key:generate --force`（.env へ書き込む）はコンテナ内で失敗する。
+> `APP_KEY` は「値だけ生成 → ホスト側 `backend/.env` に手動記入」する。
+
 ```bash
 cd /home/urlshare/tool-urlshare
 git checkout product
 
 # .env / .env.db を配置後
 docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec -T php php artisan key:generate --force
+
+# APP_KEY: 値だけ生成（--show はファイルに書かない）してホストの backend/.env に記入
+docker compose -f docker-compose.prod.yml exec -T php php artisan key:generate --show
+#   → 出力 base64:... を backend/.env の APP_KEY= に貼り付ける
+#   （openssl rand -base64 32 で "base64:..." を自作しても可）
+
+# 本番 .env の値でキャッシュし直す
+docker compose -f docker-compose.prod.yml exec -T php php artisan config:clear
+docker compose -f docker-compose.prod.yml exec -T php php artisan config:cache
+
 docker compose -f docker-compose.prod.yml exec -T php php artisan migrate --force
 # 管理者ユーザー作成（必要に応じて）
 ```
