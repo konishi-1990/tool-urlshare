@@ -1,0 +1,28 @@
+# production ビルドは context=repo root。イメージに不要なものを除外し、
+# ビルドを軽量・決定的にする（composer install はビルド時に実行するため vendor は不要）。
+.git
+.github
+.gitignore
+
+# 依存物（イメージ内で再インストールされる）
+backend/vendor
+backend/node_modules
+**/node_modules
+
+# 環境ファイル（実行時にマウントで供給）
+.env
+.env.*
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# ローカル/OS/ドキュメント
+.DS_Store
+docs
+script
+*.png
+README.md
+
+# キャッシュ・テスト成果物
+backend/.phpunit.result.cache
+backend/storage/logs/*

@@ -1,0 +1,64 @@
+# 本番用 compose。
+# 80/443 の終端・証明書取得は上位 nginx-proxy(jwilder) + letsencrypt-companion が担うため、
+# アプリ側のコンテナはポートを公開しない。VIRTUAL_HOST/LETSENCRYPT_HOST で自動ルーティングされる。
+services:
+  nginx:
+    image: nginx:alpine
+    restart: always
+    # ports は公開しない（80/443 は上位 nginx-proxy が担当）
+    expose:
+      - "80"
+    environment:
+      VIRTUAL_HOST: tool-urlshare.cde.jp
+      VIRTUAL_PORT: "80"
+      LETSENCRYPT_HOST: tool-urlshare.cde.jp
+      LETSENCRYPT_EMAIL: cony@cde.jp
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend:/var/www/frontend:ro
+      - ./admin:/var/www/admin:ro
+    networks:
+      - proxy # 上位 nginx-proxy と同じ外部ネットワーク
+      - internal
+    depends_on:
+      - php
+
+  php:
+    build:
+      context: . # repo root。Dockerfile が backend/ を COPY するため
+      dockerfile: docker/php/Dockerfile
+      target: production # backend を焼き込み・composer/artisan cache 済み
+    restart: always
+    volumes:
+      # 本番 .env は実行時に供給（gitignore 済みのためサーバ上に手動配置）
+      - ./backend/.env:/var/www/backend/.env:ro
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    env_file:
+      - .env.db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    # 開発用と異なり ports は公開しない（外部非公開）
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urlshare"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  proxy:
+    external: true
+    name: nginx-proxy_default
+  internal:
+
+volumes:
+  db_data:
