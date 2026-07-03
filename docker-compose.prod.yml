@@ -57,7 +57,7 @@ services:
 networks:
   proxy:
     external: true
-    name: nginx-proxy_default
+    name: nginx-proxy
   internal:
 
 volumes:

@@ -135,7 +135,7 @@ VPS には別途 `jwilder/nginx-proxy` + `letsencrypt-nginx-proxy-companion` が
 
 | 項目 | 値 |
 |---|---|
-| 共有ネットワーク名 | `nginx-proxy_default`（`external: true` で参照） |
+| 共有ネットワーク名 | `nginx-proxy`（`external: true` で参照） |
 | 公開ドメイン | `tool-urlshare.cde.jp` |
 | VIRTUAL_HOST / LETSENCRYPT_HOST | `tool-urlshare.cde.jp` |
 | LETSENCRYPT_EMAIL | `cony@cde.jp` |
@@ -195,7 +195,7 @@ services:
 networks:
   proxy:
     external: true
-    name: nginx-proxy_default
+    name: nginx-proxy
   internal:
 
 volumes:
@@ -255,7 +255,7 @@ volumes:
 デプロイ前に VPS 側で以下が整っていること。
 
 1. **Docker / Docker Compose 導入済み**
-2. **上位 nginx-proxy + letsencrypt-companion が稼働中**（`nginx-proxy_default` ネットワークが存在）
+2. **上位 nginx-proxy + letsencrypt-companion が稼働中**（`nginx-proxy` ネットワークが存在）
 3. **リポジトリを clone 済み**
    ```bash
    git clone github_cdetool:konishi-1990/tool-urlshare.git /home/urlshare/tool-urlshare
@@ -297,7 +297,7 @@ docker compose -f docker-compose.prod.yml exec -T php php artisan migrate --forc
 - [ ] `backend/.env`（本番）の具体値の確定（APP_KEY 採番、DB 認証情報）
 - [ ] VPS 上のデプロイ先ディレクトリパス確定（`DEPLOY_ARGS` に反映）
 - [ ] SSH 接続ユーザ・鍵の準備と Secrets 登録
-- [ ] `nginx-proxy_default` ネットワークの実在確認（`docker network ls`）
+- [ ] `nginx-proxy` ネットワークの実在確認（`docker network ls`）
 - [ ] DNS（A レコード）設定
 - [x] 各ファイルの作成・修正（workflow / prod compose / .dockerignore / deploy.sh）
 - [ ] `product` ブランチを `main` から作成し push（PR base として必要）
