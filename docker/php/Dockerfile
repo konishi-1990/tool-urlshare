@@ -18,8 +18,14 @@ FROM base AS production
 
 COPY backend/ /var/www/backend/
 
+# 依存だけをビルド時に固める。
+# config/route/view の cache と migrate は .env がマウントされる起動時に
+# entrypoint で実行する（ビルド時は .env 不在で誤った値が焼き込まれるため）。
 RUN composer install --no-dev --optimize-autoloader \
-    && php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache \
     && chown -R www-data:www-data /var/www/backend
+
+COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["php-fpm"]
